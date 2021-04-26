@@ -1,6 +1,6 @@
-# Meta-analysis: Personality traits and variability in emotion and well-being
+# Meta-analysis: Personality traits and emotional variability
 
-Analysis code for the meta-analysis project of personality traits and emotional variability
+Analysis code for the meta-analysis project looking at the association between the Big Five personality traits and variability in emotion and well-being. We compared patterns between positive vs. negative emotion, between traditional longitudinal design and experience sampling methods, and among the Big Five traits. 
 
 Linh Nguyen - nguy4006@umn.edu
 
