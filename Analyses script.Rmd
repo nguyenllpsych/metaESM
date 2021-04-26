@@ -1,0 +1,288 @@
+---
+title: "Analysis script"
+author: "Linh Nguyen"
+date: "4/21/2021"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float: true
+    code_folding: 'hide'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Meta-Data
+
+```{r, message = F, warning = F}
+require(tidyverse)
+require(rio)
+require(summarytools)
+require(psych)
+require(metafor)
+set.seed(202104)
+sessionInfo()
+```
+
+## Data prepping
+
+### Read in data
+
+This dataset includes the full-text coding of the first 30 eligible articles during the pilot stage. None of these articles reported the needed statistics, so these values will be simulated in the next section. Only personality at the Big Five level (OCEAN traits) are included. Some descriptive statistics of study characteristics are presented below:
+
+```{r, message = F, warning = F, results = "asis"}
+#read in the needed columns
+data <- rio::import("Coding-2021-04-23.xlsx") %>% 
+  select(-c(PDF, Year, Author, Title, Journal, Vol, Issue, Pages, Location, Notes, Archival))
+
+#reasons for ineligibility 
+data %>% group_by(Eligible) %>% 
+  summarise(n = n())%>% 
+  knitr::kable()
+data %>% filter(Eligible == "No") %>% 
+  group_by(Why_ineligible) %>%
+  summarise(reason = n()) %>% 
+  knitr::kable()
+
+#remove ineligible studies
+data <- data %>% 
+  filter(Eligible != "No")
+
+#clean-up descriptives
+data$N <- as.numeric(data$N)
+
+data[which(data$MAge == "49.8 (M) and 45.5 (F)"),]$MAge <- (49.8+45.5)/2
+data[which(data$SDAge == "17.3 (M) and 14.1 (F)"),]$SDAge <- (17.3+14.1)/2
+data$MAge <- round(as.numeric(data$MAge), digits = 3)
+data$SDAge <- round(as.numeric(data$SDAge), digits = 3)
+data[which(as.numeric(data$White) > 1),]$White <- as.numeric(data[which(as.numeric(data$White) > 1),]$White)/100
+data$Fem <- round(as.numeric(data$Fem), digits = 3)
+data$White <- round(as.numeric(data$White), digits = 3)
+
+descr <- data %>% select(N,MAge, SDAge, Fem, White)
+descr(descr, stats = "common", order = "p")
+
+#pool ESM + DD = ESM
+data <- data %>% 
+  mutate(Design = ifelse(Design == "DD", "ESM", Design))
+
+#emotion variable with two levels (positive and negative)
+data <- data %>% 
+  mutate(EmoPN = ifelse(str_detect(Emo, "Positive") | str_detect(Emo, "Happ"), "Positive",
+                        ifelse(str_detect(Emo, "Negative") | str_detect(Emo, "stress") | 
+                                 str_detect(Emo, "distress") | str_detect(Emo, "boredom")|
+                                 str_detect(Emo, "sadness") | str_detect(Emo, "strain"), "Negative", NA)))
+
+#only select big five domains (OCEAN)
+pers <- c("Agreeableness", "Conscientiousness", "Extraversion", "Neuroticism", "Openness")
+data <- data %>% 
+  filter(Pers %in% pers)
+data %>% 
+  group_by(Pers) %>% 
+  summarise(n = n())%>% 
+  knitr::kable()
+freq(data$Pers)
+freq(data$ID)
+freq(data$Design)
+```
+
+### Simulate correlation
+
+```{r}
+#sample from normal distribution (fisher's z, mean = 0.1, sd = 0.2) 
+data$Corr <- rnorm(n = nrow(data), mean = 0.1, sd = 0.2)
+
+#transformed to pearson's correlation
+data$Corr <- fisherz2r(data$Corr)
+hist(data$Corr)
+```
+
+## Data analysis
+
+```{r}
+#compute sampling sampling variances `vi`
+data <- escalc(measure = "COR",
+             ri = Corr,
+             ni = N, 
+             data = data,
+             slab = ID) %>% select(-yi)
+```
+
+### Random effects model
+
+Analyses are run separately for each trait. Model results are printed in alphabetical order: Agreeableness - Conscientiousness - Extraversion - Neuroticism - Openness
+
+```{r}
+agreeableness <- rma.mv(yi = Corr,
+                        V = vi,
+                        data = data[which(data$Pers == "Agreeableness"),],
+                        method = "REML",
+                        level = 95, 
+                        digits = 4,
+                        slab = ID,
+                        random = ~1 | ID)
+agreeableness
+
+conscientiousness <- rma.mv(yi = Corr,
+                            V = vi,
+                            data = data[which(data$Pers == "Conscientiousness"),],
+                            method = "REML",
+                            level = 95, 
+                            digits = 4,
+                            slab = ID,
+                            random = ~1 | ID)
+conscientiousness
+
+extraversion <- rma.mv(yi = Corr,
+                       V = vi,
+                       data = data[which(data$Pers == "Extraversion"),],
+                       method = "REML",
+                       level = 95, 
+                       digits = 4,
+                       slab = ID,
+                       random = ~1 | ID)
+extraversion
+
+neuroticism <- rma.mv(yi = Corr,
+                      V = vi,
+                      data = data[which(data$Pers == "Neuroticism"),],
+                      method = "REML",
+                      level = 95, 
+                      digits = 4,
+                      slab = ID,
+                      random = ~1 | ID)
+neuroticism
+
+openness <- rma.mv(yi = Corr,
+                   V = vi,
+                   data = data[which(data$Pers == "Openness"),],
+                   method = "REML",
+                   level = 95, 
+                   digits = 4,
+                   slab = ID,
+                   random = ~1 | ID)
+openness
+```
+
+### Forest plots
+
+```{r, fig.width = 7, fig.height = 10}
+par(mar=c(2.5,4,1,2.5), cex = .9, font = 1)
+
+forest(agreeableness,
+       xlim = c(-2,2),
+       order = "obs",
+       addfit = T,
+       annotate = T,
+       width = 0,
+       efac = .5,
+       pch = 19,
+       clim = c(-1,1),
+       cex.lab = 1,
+       cex.axis = 1,
+       cex = .85,
+       lty = c("solid", "solid",  "solid"),
+       xlab = "",
+       mlab = "Agreeableness RE: k = 49, p <.0001",
+       showweights = F,
+       steps = 5)
+
+forest(conscientiousness,
+       xlim = c(-2,2),
+       order = "obs",
+       addfit = T,
+       annotate = T,
+       width = 0,
+       efac = .5,
+       pch = 19,
+       clim = c(-1,1),
+       cex.lab = 1,
+       cex.axis = 1,
+       cex = .85,
+       lty = c("solid", "solid",  "solid"),
+       xlab = "",
+       mlab = "Conscientiousness RE: k = 53, p <.0001",
+       showweights = F,
+       steps = 5)
+
+forest(extraversion,
+       xlim = c(-2,2),
+       order = "obs",
+       addfit = T,
+       annotate = T,
+       width = 0,
+       efac = .5,
+       pch = 19,
+       clim = c(-1,1),
+       cex.lab = 1,
+       cex.axis = 1,
+       cex = .85,
+       lty = c("solid", "solid",  "solid"),
+       xlab = "",
+       mlab = "Extraversion RE: k = 68, p <.0001",
+       showweights = F,
+       steps = 5)
+
+forest(neuroticism,
+       xlim = c(-2,2),
+       order = "obs",
+       addfit = T,
+       annotate = T,
+       width = 0,
+       efac = .5,
+       pch = 19,
+       clim = c(-1,1),
+       cex.lab = 1,
+       cex.axis = 1,
+       cex = .85,
+       lty = c("solid", "solid",  "solid"),
+       xlab = "",
+       mlab = "Neuroticism RE: k = 67, p <.0001",
+       showweights = F,
+       steps = 5)
+
+forest(openness,
+       xlim = c(-2,2),
+       order = "obs",
+       addfit = T,
+       annotate = T,
+       width = 0,
+       efac = .5,
+       pch = 19,
+       clim = c(-1,1),
+       cex.lab = 1,
+       cex.axis = 1,
+       cex = .85,
+       lty = c("solid", "solid",  "solid"),
+       xlab = "",
+       mlab = "Openness RE: k = 49, p <.0001",
+       showweights = F,
+       steps = 5)
+```
+
+### Moderator: ESM vs. LD
+
+The first moderator is the repeated-measure design. A study is considered `ESM` if it uses rapid assessments with frequency from daily to multiple times a day. Examples include experience sampling methods and daily diary studies. For ease of presentation, only models for trait Neuroticism are tested for moderators.
+
+```{r}
+design <- rma.mv(yi = Corr,
+                 V = vi, 
+                 mods = ~factor(Design),
+                 data = data[which(data$Pers == "Neuroticism"),],
+                 random = ~1 | ID)
+design
+```
+
+### Moderator: Positive vs. Negative affect
+
+```{r}
+design <- rma.mv(yi = Corr,
+                 V = vi, 
+                 mods = ~factor(EmoPN),
+                 data = data[which(data$Pers == "Neuroticism"),],
+                 random = ~1 | ID)
+design
+```
+
