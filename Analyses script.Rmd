@@ -1,7 +1,7 @@
 ---
 title: "Analysis script"
 author: "Linh Nguyen"
-date: "4/21/2021"
+date: "4/30/2021"
 output: 
   html_document:
     toc: true
@@ -30,12 +30,17 @@ sessionInfo()
 
 ### Read in data
 
-This dataset includes the full-text coding of the first 30 eligible articles during the pilot stage. None of these articles reported the needed statistics, so these values will be simulated in the next section. Only personality at the Big Five level (OCEAN traits) are included. Some descriptive statistics of study characteristics are presented below:
+This dataset includes the full-text coding of the first 30 eligible articles during the pilot stage with 34 samples. None of these articles reported the needed statistics, so these values will be simulated in the next section. Only personality at the Big Five level (OCEAN traits) are included. Some descriptive statistics of study characteristics are presented below:
 
 ```{r, message = F, warning = F, results = "asis"}
 #read in the needed columns
 data <- rio::import("Coding-2021-04-23.xlsx") %>% 
   select(-c(PDF, Year, Author, Title, Journal, Vol, Issue, Pages, Location, Notes, Archival))
+
+#number of samples
+data <- data %>% 
+  mutate(ID = ifelse(is.na(Study), ID,
+                     paste0(ID, "_", Study)))
 
 #reasons for ineligibility 
 data %>% group_by(Eligible) %>% 
@@ -61,7 +66,12 @@ data[which(as.numeric(data$White) > 1),]$White <- as.numeric(data[which(as.numer
 data$Fem <- round(as.numeric(data$Fem), digits = 3)
 data$White <- round(as.numeric(data$White), digits = 3)
 
-descr <- data %>% select(N,MAge, SDAge, Fem, White)
+data$num = 1
+for (i in 1:(length(data$ID)-1)){
+  data[i,]$num <- ifelse(data[i,]$ID != data[i+1,]$ID, 1, NA)
+}
+
+descr <- data %>% filter(num == 1) %>% select(N,MAge, SDAge, Fem, White)
 descr(descr, stats = "common", order = "p")
 
 #pool ESM + DD = ESM
