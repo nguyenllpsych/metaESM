@@ -1,7 +1,7 @@
 ---
 title: "Analysis script"
 author: "Linh Nguyen"
-date: "4/30/2021"
+date: "05/05/2021"
 output: 
   html_document:
     toc: true
@@ -155,7 +155,7 @@ forest(neuroticism,
        cex = .85,
        lty = c("solid", "solid",  "solid"),
        xlab = "",
-       mlab = "Neuroticism - Emotion variability \n RE: k = 35, p = 0.076",
+       mlab = "Neuroticism - Emotion variability \n RE: k = 35, p = 0.044",
        showweights = F,
        steps = 5)
 ```
